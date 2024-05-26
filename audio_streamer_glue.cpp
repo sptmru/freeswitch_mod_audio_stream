@@ -557,7 +557,7 @@ public:
         if (this->isConnected())
         {
             // Calculate the expected interval based on the sample rate and channels
-            double expected_interval = static_cast<double>(len) / (m_samplingRate * m_channels); // 2 bytes per sample for 16-bit audio
+            double expected_interval = static_cast<double>(len) / (m_samplingRate * m_channels * 2); // 2 bytes per sample for 16-bit audio
 
             static auto last_send_time = std::chrono::steady_clock::now();
             auto now = std::chrono::steady_clock::now();
