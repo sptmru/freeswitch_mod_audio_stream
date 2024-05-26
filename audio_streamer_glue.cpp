@@ -529,7 +529,7 @@ public:
     {
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "disconnecting TCP streamer...\n");
         close(m_socket);
-        m_socket = -1;
+        // m_socket = -1;
     }
 
     static void media_bug_close(switch_core_session_t *session)
