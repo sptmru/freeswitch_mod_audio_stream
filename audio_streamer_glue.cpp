@@ -215,6 +215,7 @@ public:
                 int sampleRate;
                 if (0 == strcmp(jsAudioDataType, "raw"))
                 {
+                    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "processMessage - raw audio\n");
                     cJSON *jsonSampleRate = cJSON_GetObjectItem(jsonData, "sampleRate");
                     sampleRate = jsonSampleRate && jsonSampleRate->valueint ? jsonSampleRate->valueint : 0;
                     std::unordered_map<int, const char *> sampleRateMap = {
@@ -229,6 +230,7 @@ public:
                 }
                 else if (0 == strcmp(jsAudioDataType, "wav"))
                 {
+                    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "processMessage - WAV audio\n");
                     fileType = ".wav";
                 }
                 else
