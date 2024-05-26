@@ -2,6 +2,7 @@
  * mod_audio_stream FreeSWITCH module to stream audio to websocket and receive response
  */
 #include <stdbool.h>
+#include <math.h>
 #include "mod_audio_stream.h"
 #include "audio_streamer_glue.h"
 
@@ -80,8 +81,10 @@ static switch_status_t start_capture(switch_core_session_t *session,
 
     char wsUri[MAX_WS_URI];
     char tcpAddress[MAX_WS_URI];
-    int port = 0;
-    bool isWs = validate_address(address, wsUri, tcpAddress, port);
+
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "starting validate_address\n");
+    int port = return_port(address);
+    bool isWs = validate_address(address, wsUri, tcpAddress, 0);
 
     if (isWs)
     {
@@ -95,9 +98,13 @@ static switch_status_t start_capture(switch_core_session_t *session,
     }
     else
     {
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "start_capture: port  = %i\n", port);
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "start_capture: address  = %s\n", address);
+        address[strlen(address) - ((int)log10(port) + 2)] = '\0';
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "start_capture: address without port  = %s\n", address);
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "calling stream_session_init for TCP.\n");
         if (SWITCH_STATUS_FALSE == stream_session_init(session, responseHandler, read_codec->implementation->actual_samples_per_second,
-                                                       tcpAddress, port, sampling, channels, metadata, &pUserData))
+                                                       address, port, sampling, channels, metadata, &pUserData))
         {
             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Error initializing mod_audio_stream TCP session.\n");
             return SWITCH_STATUS_FALSE;
@@ -266,7 +273,7 @@ SWITCH_STANDARD_API(stream_function)
                 {
                     sampling = atoi(argv[4]);
                 }
-                if (!validate_address(argv[2], address, address, 0))
+                if (strcmp(STREAM_TYPE, "WS") == 0 && !validate_address(argv[2], address, address, 0))
                 {
                     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "invalid address: %s\n", argv[2]);
                 }
@@ -276,7 +283,8 @@ SWITCH_STANDARD_API(stream_function)
                 }
                 else
                 {
-                    status = start_capture(lsession, flags, address, sampling, metadata);
+                    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "starting start_capture\n");
+                    status = start_capture(lsession, flags, argv[2], sampling, metadata);
                 }
             }
             else
