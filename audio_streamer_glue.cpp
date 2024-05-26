@@ -556,8 +556,6 @@ public:
     {
         if (this->isConnected())
         {
-            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "TcpStreamer: Sending %zu bytes\n", len);
-
             // Calculate the expected interval based on the sample rate and channels
             double expected_interval = static_cast<double>(len) / (m_samplingRate * m_channels * 2); // 2 bytes per sample for 16-bit audio
 
