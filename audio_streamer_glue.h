@@ -14,6 +14,7 @@ switch_bool_t stream_frame(switch_media_bug_t *bug);
 switch_status_t stream_session_cleanup(switch_core_session_t *session, char *text, int channelIsClosing);
 
 void init_pcmu_to_lpcm();
-int16_t pcmu_to_lpcm_convert(uint8_t pcmu_byte) void pcmu_to_lpcm_convert_buffer(const uint8_t *pcmu_buffer, int16_t *lpcm_buffer, size_t len)
+int16_t pcmu_to_lpcm_convert(uint8_t pcmu_byte);
+void pcmu_to_lpcm_convert_buffer(const uint8_t *pcmu_buffer, int16_t *lpcm_buffer, size_t len)
 
 #endif // AUDIO_STREAMER_GLUE_H
