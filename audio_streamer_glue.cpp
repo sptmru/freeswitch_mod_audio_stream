@@ -330,7 +330,7 @@ public:
                 bool globalTrace, bool suppressLog, responseHandler_t callback, int samplingRate, int channels)
         : m_sessionId(uuid), m_address(address), m_port(port), m_notify(callback), m_initial_meta(initialMeta),
           m_global_trace(globalTrace), m_suppress_log(suppressLog), m_socket(-1), m_playFile(0), m_samplingRate(samplingRate), m_channels(channels),
-          m_im_isWavFormatsWavFormat(false), m_wavHeaderParsed(false)
+          m_isWavFormat(false), m_wavHeaderParsed(false)
     {
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "TcpStreamer: Initializing TCP connection to %s:%d\n", address, port);
 
