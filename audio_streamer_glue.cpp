@@ -354,20 +354,6 @@ public:
             std::cerr << "Connection failed" << std::endl;
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "TcpStreamer: Connection to %s:%d failed\n", address, port);
             close(m_socket);
-
-            cJSON *root, *message;
-            root = cJSON_CreateObject();
-            cJSON_AddStringToObject(root, "status", "error");
-            message = cJSON_CreateObject();
-            cJSON_AddItemToObject(root, "message", message);
-
-            char *json_str = cJSON_PrintUnformatted(root);
-
-            eventCallback(CONNECT_ERROR, json_str);
-
-            cJSON_Delete(root);
-            switch_safe_free(json_str);
-
             m_socket = -1;
             return;
         }
@@ -389,27 +375,7 @@ public:
 
     ~TcpStreamer()
     {
-        if (m_socket != -1)
-        {
-            close(m_socket);
-
-            cJSON *root, *message;
-            root = cJSON_CreateObject();
-            cJSON_AddStringToObject(root, "status", "disconnected");
-            message = cJSON_CreateObject();
-            cJSON_AddNumberToObject(message, "code", 0);
-            cJSON_AddStringToObject(message, "reason", "");
-            cJSON_AddItemToObject(root, "message", message);
-            char *json_str = cJSON_PrintUnformatted(root);
-
-            eventCallback(CONNECTION_DROPPED, json_str);
-
-            cJSON_Delete(root);
-            switch_safe_free(json_str);
-
-            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "TcpStreamer: Connection closed\n");
-        }
-
+        disconnect();
         if (m_readThread.joinable())
         {
             m_readThread.join();
@@ -419,7 +385,7 @@ public:
     void readMessages()
     {
         char buffer[1024];
-        while (true)
+        while (isConnected())
         {
             int bytesReceived = recv(m_socket, buffer, sizeof(buffer) - 1, 0);
             if (bytesReceived <= 0)
@@ -527,9 +493,23 @@ public:
 
     void disconnect() override
     {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "disconnecting TCP streamer...\n");
-        close(m_socket);
-        // m_socket = -1;
+        if (m_socket != -1)
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Disconnecting TCP streamer...\n");
+            close(m_socket);
+            m_socket = -1;
+
+            cJSON *root = cJSON_CreateObject();
+            cJSON_AddStringToObject(root, "status", "disconnected");
+            char *json_str = cJSON_PrintUnformatted(root);
+
+            eventCallback(CONNECTION_DROPPED, json_str);
+
+            cJSON_Delete(root);
+            switch_safe_free(json_str);
+
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "TcpStreamer: Connection closed\n");
+        }
     }
 
     static void media_bug_close(switch_core_session_t *session)
