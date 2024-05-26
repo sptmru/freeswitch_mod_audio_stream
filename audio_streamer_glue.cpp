@@ -277,7 +277,7 @@ public:
 
     void disconnect() override
     {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "disconnecting...\n");
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "disconnecting WS streamer...\n");
         webSocket.stop();
     }
 
@@ -533,7 +533,7 @@ public:
 
     void disconnect() override
     {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "disconnecting...\n");
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "disconnecting TCP streamer...\n");
         close(m_socket);
         m_socket = -1;
     }
