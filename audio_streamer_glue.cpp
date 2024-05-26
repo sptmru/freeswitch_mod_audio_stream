@@ -559,17 +559,32 @@ public:
             // Calculate the expected interval based on the sample rate and channels
             double expected_interval = static_cast<double>(len) / (m_samplingRate * m_channels * 2); // 2 bytes per sample for 16-bit audio
 
-            static auto last_send_time = std::chrono::steady_clock::now();
             auto now = std::chrono::steady_clock::now();
+
+            // Ensure last_send_time is initialized properly
+            if (last_send_time.time_since_epoch().count() == 0)
+            {
+                last_send_time = now;
+            }
+
             std::chrono::duration<double> elapsed = now - last_send_time;
 
             if (elapsed.count() < expected_interval)
             {
-                std::this_thread::sleep_for(std::chrono::duration<double>(expected_interval - elapsed.count()));
+                auto sleep_time = std::chrono::duration<double>(expected_interval - elapsed.count());
+                std::this_thread::sleep_for(sleep_time);
             }
 
-            send(m_socket, buffer, len, 0);
-            last_send_time = now;
+            ssize_t bytes_sent = send(m_socket, buffer, len, 0);
+
+            if (bytes_sent == -1)
+            {
+                // Handle send error
+                std::cerr << "Failed to send data: " << strerror(errno) << std::endl;
+                // Optionally, handle disconnection or reconnection logic
+            }
+
+            last_send_time = std::chrono::steady_clock::now();
         }
     }
 
