@@ -685,6 +685,8 @@ namespace
 
         size_t buflen = (FRAME_SIZE_8000 * desiredSampling / 8000 * channels * BUFFERIZATION_INTERVAL_MS / 20);
 
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "stream_data_init: STREAM_TYPE is %s\n", STREAM_TYPE);
+
         if (strcmp(STREAM_TYPE, "TCP") == 0)
         {
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "stream_data_init: initiate TCP streamer\n");
