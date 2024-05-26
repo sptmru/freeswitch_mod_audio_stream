@@ -26,9 +26,7 @@ add_library(mod_audio_stream SHARED
     audio_streamer_glue.h 
     audio_streamer_glue.cpp 
     buffer/ringbuffer.c
-    buffer/ringbuffer.h
     base64.cpp 
-    base64.h
     pcmu_to_lpcm.c
     pcmu_to_lpcm.h
 )
