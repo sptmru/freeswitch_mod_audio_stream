@@ -32,7 +32,7 @@ namespace
 // Function to convert a single PCMU byte to LPCM
 inline int16_t pcmu_to_lpcm_convert(uint8_t pcmu_byte)
 {
-    return pcmu_to_lpcm[pcmu_byte];
+    return pcmu_to_lpcm(pcmu_byte);
 }
 
 class BaseStreamer
@@ -293,7 +293,7 @@ public:
         return (webSocket.getReadyState() == ix::ReadyState::Open);
     }
 
-    void AudioStreamer::writeBinary(uint8_t *buffer, size_t len)
+    void writeBinary(uint8_t *buffer, size_t len)
     {
         if (!this->isConnected())
             return;
@@ -566,7 +566,7 @@ public:
         return; // we won't be sending text messages over TCP now
     }
 
-    void TcpStreamer::writeBinary(uint8_t *buffer, size_t len)
+    void writeBinary(uint8_t *buffer, size_t len)
     {
         if (this->isConnected())
         {
