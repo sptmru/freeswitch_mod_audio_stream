@@ -537,11 +537,11 @@ public:
 
     void eventCallback(notifyEvent_t event, const char *message) override
     {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "eventCallback: got event %s\n", event);
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "eventCallback: got event\n");
         switch_core_session_t *psession = switch_core_session_locate(m_sessionId.c_str());
         if (psession)
         {
-            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "eventCallback: handling event %s\n", event);
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "eventCallback: handling event\n");
             switch (event)
             {
             case CONNECT_SUCCESS:
