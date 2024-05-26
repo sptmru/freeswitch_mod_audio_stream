@@ -19,6 +19,7 @@
 #include <thread>
 
 #include <array>
+#include "pcmu_to_lpcm.h"
 
 #define FRAME_SIZE_8000 320 /* 1000x0.02 (20ms)= 160 x(16bit= 2 bytes) 320 frame size*/
 #define BUFFERIZATION_INTERVAL_MS 500
@@ -26,21 +27,6 @@
 namespace
 {
     extern switch_bool_t filter_json_string(switch_core_session_t *session, const char *message);
-}
-
-std::array<int16_t, 256> pcmu_to_lpcm;
-
-void init_pcmu_to_lpcm()
-{
-    for (int i = 0; i < 256; ++i)
-    {
-        int mu = 255;
-        int sign = (i & 0x80) ? -1 : 1;
-        int exponent = (i >> 4) & 0x07;
-        int mantissa = i & 0x0F;
-        int magnitude = ((mantissa << 1) + 33) << (exponent + 2);
-        pcmu_to_lpcm[i] = sign * (magnitude - 132);
-    }
 }
 
 init_pcmu_to_lpcm();
@@ -317,7 +303,7 @@ public:
         return (webSocket.getReadyState() == ix::ReadyState::Open);
     }
 
-    void writeBinary(uint8_t *buffer, size_t len) override
+    void AudioStreamer::writeBinary(uint8_t *buffer, size_t len)
     {
         if (!this->isConnected())
             return;
@@ -590,7 +576,7 @@ public:
         return; // we won't be sending text messages over TCP now
     }
 
-    void writeBinary(uint8_t *buffer, size_t len) override
+    void TcpStreamer::writeBinary(uint8_t *buffer, size_t len)
     {
         if (this->isConnected())
         {

@@ -1,6 +1,7 @@
 #ifndef AUDIO_STREAMER_GLUE_H
 #define AUDIO_STREAMER_GLUE_H
 #include "mod_audio_stream.h"
+#include "pcmu_to_lpcm.h"
 
 int validate_ws_uri(const char *url, char *wsUri);
 int validate_address(const char *address, char *wsUri, char *tcpAddress, int *port);
