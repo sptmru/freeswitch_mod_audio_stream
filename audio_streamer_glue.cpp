@@ -650,6 +650,7 @@ namespace
         int err; // speex
 
         switch_memory_pool_t *pool = switch_core_session_get_pool(session);
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "stream_data_init sampling: %u, desiredSampling: %u, channels: %d\n", sampling, desiredSampling, channels);
 
         memset(tech_pvt, 0, sizeof(private_t));
 
