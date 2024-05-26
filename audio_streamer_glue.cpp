@@ -689,14 +689,12 @@ namespace
 
         if (strcmp(STREAM_TYPE, "TCP") == 0)
         {
-            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "stream_data_init: STREAM_TYPE1 is %s\n", STREAM_TYPE);
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "stream_data_init: initiate TCP streamer\n");
             auto *tcpStreamer = new TcpStreamer(tech_pvt->sessionId, address, port, metadata, globalTrace, suppressLog, responseHandler, desiredSampling, channels);
             tech_pvt->pAudioStreamer = static_cast<void *>(tcpStreamer);
         }
         else
         {
-            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "stream_data_init: STREAM_TYPE2 is %s\n", STREAM_TYPE);
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "stream_data_init: initiate WS streamer\n");
             auto *as = new AudioStreamer(tech_pvt->sessionId, address, responseHandler, deflate, heart_beat, metadata, globalTrace, suppressLog, extra_headers);
             tech_pvt->pAudioStreamer = static_cast<void *>(as);
