@@ -18,12 +18,21 @@
 #include <chrono>
 #include <thread>
 
+#include <array>
+#include "pcmu_to_lpcm.h"
+
 #define FRAME_SIZE_8000 320 /* 1000x0.02 (20ms)= 160 x(16bit= 2 bytes) 320 frame size*/
 #define BUFFERIZATION_INTERVAL_MS 500
 
 namespace
 {
     extern switch_bool_t filter_json_string(switch_core_session_t *session, const char *message);
+}
+
+// Function to convert a single PCMU byte to LPCM
+inline int16_t pcmu_to_lpcm_convert(uint8_t pcmu_byte)
+{
+    return pcmu_to_lpcm(pcmu_byte);
 }
 
 class BaseStreamer
@@ -284,11 +293,16 @@ public:
         return (webSocket.getReadyState() == ix::ReadyState::Open);
     }
 
-    void writeBinary(uint8_t *buffer, size_t len) override
+    void writeBinary(uint8_t *buffer, size_t len)
     {
         if (!this->isConnected())
             return;
-        webSocket.sendBinary(ix::IXWebSocketSendData((char *)buffer, len));
+
+        size_t lpcm_len = len; // PCMU to LPCM is 1:1 ratio
+        std::vector<int16_t> lpcm_buffer(lpcm_len);
+
+        pcmu_to_lpcm_convert_buffer(buffer, lpcm_buffer.data(), len);
+        webSocket.sendBinary(ix::IXWebSocketSendData(reinterpret_cast<char *>(lpcm_buffer.data()), lpcm_len * sizeof(int16_t)));
     }
 
     void writeText(const char *text) override
@@ -552,25 +566,29 @@ public:
         return; // we won't be sending text messages over TCP now
     }
 
-    void writeBinary(uint8_t *buffer, size_t len) override
+    void writeBinary(uint8_t *buffer, size_t len)
     {
         if (this->isConnected())
         {
+            size_t lpcm_len = len; // PCMU to LPCM is 1:1 ratio
+            std::vector<int16_t> lpcm_buffer(lpcm_len);
+
+            pcmu_to_lpcm_convert_buffer(buffer, lpcm_buffer.data(), len);
+
             // Calculate the expected interval based on the sample rate and channels
-            double expected_interval = static_cast<double>(len) / (m_samplingRate * m_channels * 2); // 2 bytes per sample for 16-bit audio
+            // double expected_interval = static_cast<double>(lpcm_len) / (m_samplingRate * m_channels); // 2 bytes per sample for 16-bit audio
 
-            static auto last_send_time = std::chrono::steady_clock::now();
-            auto now = std::chrono::steady_clock::now();
+            // static auto last_send_time = std::chrono::steady_clock::now();
+            // auto now = std::chrono::steady_clock::now();
 
-            std::chrono::duration<double> elapsed = now - last_send_time;
+            // std::chrono::duration<double> elapsed = now - last_send_time;
 
-            if (elapsed.count() < expected_interval)
-            {
-                auto sleep_time = std::chrono::duration<double>(expected_interval - elapsed.count());
-                std::this_thread::sleep_for(sleep_time);
-            }
-
-            ssize_t bytes_sent = send(m_socket, buffer, len, 0);
+            // if (elapsed.count() < expected_interval)
+            // {
+            //     auto sleep_time = std::chrono::duration<double>(expected_interval - elapsed.count());
+            //     std::this_thread::sleep_for(sleep_time);
+            // }
+            ssize_t bytes_sent = send(m_socket, lpcm_buffer.data(), lpcm_len * sizeof(int16_t), 0);
 
             if (bytes_sent == -1)
             {
@@ -579,7 +597,7 @@ public:
                 // Optionally, handle disconnection or reconnection logic
             }
 
-            last_send_time = std::chrono::steady_clock::now();
+            // last_send_time = std::chrono::steady_clock::now();
         }
     }
 
@@ -666,6 +684,8 @@ namespace
             strncpy(tech_pvt->initialMetadata, metadata, MAX_METADATA_LEN);
 
         size_t buflen = (FRAME_SIZE_8000 * desiredSampling / 8000 * channels * BUFFERIZATION_INTERVAL_MS / 20);
+
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "stream_data_init: STREAM_TYPE is %s\n", STREAM_TYPE);
 
         if (strcmp(STREAM_TYPE, "TCP") == 0)
         {
