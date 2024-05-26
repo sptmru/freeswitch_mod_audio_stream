@@ -9,6 +9,7 @@ extern "C"
 #endif
 
   void pcmu_to_lpcm_convert_buffer(const unsigned char *pcmu_buffer, short *lpcm_buffer, size_t len);
+  static inline short pcmu_to_lpcm(unsigned char pcmu_byte);
 
 #ifdef __cplusplus
 }
