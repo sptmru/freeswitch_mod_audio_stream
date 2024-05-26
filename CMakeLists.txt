@@ -29,7 +29,7 @@ add_library(mod_audio_stream SHARED
     buffer/ringbuffer.h
     base64.cpp 
     base64.h
-    pcmu_to_lpcm.cpp 
+    pcmu_to_lpcm.c
     pcmu_to_lpcm.h
 )
 
