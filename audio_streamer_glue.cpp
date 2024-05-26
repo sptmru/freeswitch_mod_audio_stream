@@ -18,12 +18,45 @@
 #include <chrono>
 #include <thread>
 
+#include <array>
+
 #define FRAME_SIZE_8000 320 /* 1000x0.02 (20ms)= 160 x(16bit= 2 bytes) 320 frame size*/
 #define BUFFERIZATION_INTERVAL_MS 500
 
 namespace
 {
     extern switch_bool_t filter_json_string(switch_core_session_t *session, const char *message);
+}
+
+std::array<int16_t, 256> pcmu_to_lpcm;
+
+void init_pcmu_to_lpcm()
+{
+    for (int i = 0; i < 256; ++i)
+    {
+        int mu = 255;
+        int sign = (i & 0x80) ? -1 : 1;
+        int exponent = (i >> 4) & 0x07;
+        int mantissa = i & 0x0F;
+        int magnitude = ((mantissa << 1) + 33) << (exponent + 2);
+        pcmu_to_lpcm[i] = sign * (magnitude - 132);
+    }
+}
+
+init_pcmu_to_lpcm();
+
+// Function to convert a single PCMU byte to LPCM
+inline int16_t pcmu_to_lpcm_convert(uint8_t pcmu_byte)
+{
+    return pcmu_to_lpcm[pcmu_byte];
+}
+
+void pcmu_to_lpcm_convert_buffer(const uint8_t *pcmu_buffer, int16_t *lpcm_buffer, size_t len)
+{
+    for (size_t i = 0; i < len; ++i)
+    {
+        lpcm_buffer[i] = pcmu_to_lpcm_convert(pcmu_buffer[i]);
+    }
 }
 
 class BaseStreamer
@@ -288,7 +321,12 @@ public:
     {
         if (!this->isConnected())
             return;
-        webSocket.sendBinary(ix::IXWebSocketSendData((char *)buffer, len));
+
+        size_t lpcm_len = len; // PCMU to LPCM is 1:1 ratio
+        std::vector<int16_t> lpcm_buffer(lpcm_len);
+
+        pcmu_to_lpcm_convert_buffer(buffer, lpcm_buffer.data(), len);
+        webSocket.sendBinary(ix::IXWebSocketSendData(reinterpret_cast<char *>(lpcm_buffer.data()), lpcm_len * sizeof(int16_t)));
     }
 
     void writeText(const char *text) override
@@ -556,8 +594,13 @@ public:
     {
         if (this->isConnected())
         {
+            size_t lpcm_len = len; // PCMU to LPCM is 1:1 ratio
+            std::vector<int16_t> lpcm_buffer(lpcm_len);
+
+            pcmu_to_lpcm_convert_buffer(buffer, lpcm_buffer.data(), len);
+
             // Calculate the expected interval based on the sample rate and channels
-            double expected_interval = static_cast<double>(len) / (m_samplingRate * m_channels * 2); // 2 bytes per sample for 16-bit audio
+            double expected_interval = static_cast<double>(lpcm_len) / (m_samplingRate * m_channels); // 2 bytes per sample for 16-bit audio
 
             static auto last_send_time = std::chrono::steady_clock::now();
             auto now = std::chrono::steady_clock::now();
@@ -569,8 +612,7 @@ public:
                 auto sleep_time = std::chrono::duration<double>(expected_interval - elapsed.count());
                 std::this_thread::sleep_for(sleep_time);
             }
-
-            ssize_t bytes_sent = send(m_socket, buffer, len, 0);
+            ssize_t bytes_sent = send(m_socket, lpcm_buffer.data(), lpcm_len * sizeof(int16_t), 0);
 
             if (bytes_sent == -1)
             {
