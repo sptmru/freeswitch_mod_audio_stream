@@ -98,10 +98,7 @@ static switch_status_t start_capture(switch_core_session_t *session,
     }
     else
     {
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "start_capture: port  = %i\n", port);
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "start_capture: address  = %s\n", address);
         address[strlen(address) - ((int)log10(port) + 2)] = '\0';
-        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "start_capture: address without port  = %s\n", address);
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "calling stream_session_init for TCP.\n");
         if (SWITCH_STATUS_FALSE == stream_session_init(session, responseHandler, read_codec->implementation->actual_samples_per_second,
                                                        address, port, sampling, channels, metadata, &pUserData))
