@@ -329,7 +329,6 @@ public:
         : m_sessionId(uuid), m_address(address), m_port(port), m_notify(callback), m_initial_meta(initialMeta),
           m_global_trace(globalTrace), m_suppress_log(suppressLog), m_socket(-1), m_playFile(0), m_samplingRate(samplingRate), m_channels(channels)
     {
-
         switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "TcpStreamer: Initializing TCP connection to %s:%d\n", address, port);
 
         m_socket = socket(AF_INET, SOCK_STREAM, 0);
@@ -557,22 +556,30 @@ public:
     {
         if (this->isConnected())
         {
-            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "TcpStreamer: Sending %zu bytes\n", len);
-
             // Calculate the expected interval based on the sample rate and channels
             double expected_interval = static_cast<double>(len) / (m_samplingRate * m_channels * 2); // 2 bytes per sample for 16-bit audio
 
             static auto last_send_time = std::chrono::steady_clock::now();
             auto now = std::chrono::steady_clock::now();
+
             std::chrono::duration<double> elapsed = now - last_send_time;
 
             if (elapsed.count() < expected_interval)
             {
-                std::this_thread::sleep_for(std::chrono::duration<double>(expected_interval - elapsed.count()));
+                auto sleep_time = std::chrono::duration<double>(expected_interval - elapsed.count());
+                std::this_thread::sleep_for(sleep_time);
             }
 
-            send(m_socket, buffer, len, 0);
-            last_send_time = now;
+            ssize_t bytes_sent = send(m_socket, buffer, len, 0);
+
+            if (bytes_sent == -1)
+            {
+                // Handle send error
+                std::cerr << "Failed to send data: " << strerror(errno) << std::endl;
+                // Optionally, handle disconnection or reconnection logic
+            }
+
+            last_send_time = std::chrono::steady_clock::now();
         }
     }
 
@@ -643,6 +650,7 @@ namespace
         int err; // speex
 
         switch_memory_pool_t *pool = switch_core_session_get_pool(session);
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_INFO, "stream_data_init sampling: %u, desiredSampling: %u, channels: %d\n", sampling, desiredSampling, channels);
 
         memset(tech_pvt, 0, sizeof(private_t));
 
