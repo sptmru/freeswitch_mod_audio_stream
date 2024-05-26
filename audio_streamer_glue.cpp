@@ -29,20 +29,10 @@ namespace
     extern switch_bool_t filter_json_string(switch_core_session_t *session, const char *message);
 }
 
-init_pcmu_to_lpcm();
-
 // Function to convert a single PCMU byte to LPCM
 inline int16_t pcmu_to_lpcm_convert(uint8_t pcmu_byte)
 {
     return pcmu_to_lpcm[pcmu_byte];
-}
-
-void pcmu_to_lpcm_convert_buffer(const uint8_t *pcmu_buffer, int16_t *lpcm_buffer, size_t len)
-{
-    for (size_t i = 0; i < len; ++i)
-    {
-        lpcm_buffer[i] = pcmu_to_lpcm_convert(pcmu_buffer[i]);
-    }
 }
 
 class BaseStreamer

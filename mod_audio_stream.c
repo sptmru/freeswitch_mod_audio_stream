@@ -5,21 +5,12 @@
 #include <math.h>
 #include "mod_audio_stream.h"
 #include "audio_streamer_glue.h"
-#include "pcmu_to_lpcm.h"
 
 SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_audio_stream_shutdown);
 SWITCH_MODULE_RUNTIME_FUNCTION(mod_audio_stream_runtime);
 SWITCH_MODULE_LOAD_FUNCTION(mod_audio_stream_load);
 
 SWITCH_MODULE_DEFINITION(mod_audio_stream, mod_audio_stream_load, mod_audio_stream_shutdown, NULL /*mod_audio_stream_runtime*/);
-
-void pcmu_to_lpcm_convert_buffer(const uint8_t *pcmu_buffer, int16_t *lpcm_buffer, size_t len)
-{
-    for (size_t i = 0; i < len; ++i)
-    {
-        lpcm_buffer[i] = pcmu_to_lpcm(pcmu_buffer[i]);
-    }
-}
 
 static void responseHandler(switch_core_session_t *session, const char *eventName, const char *json)
 {
