@@ -375,10 +375,25 @@ public:
 
     ~TcpStreamer()
     {
-        disconnect();
-        if (m_readThread.joinable())
+        if (m_socket != -1)
         {
-            m_readThread.join();
+            close(m_socket);
+
+            cJSON *root, *message;
+            root = cJSON_CreateObject();
+            cJSON_AddStringToObject(root, "status", "disconnected");
+            message = cJSON_CreateObject();
+            cJSON_AddNumberToObject(message, "code", 0);
+            cJSON_AddStringToObject(message, "reason", "");
+            cJSON_AddItemToObject(root, "message", message);
+            char *json_str = cJSON_PrintUnformatted(root);
+
+            eventCallback(CONNECTION_DROPPED, json_str);
+
+            cJSON_Delete(root);
+            switch_safe_free(json_str);
+
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "TcpStreamer: Connection closed\n");
         }
     }
 
@@ -493,27 +508,8 @@ public:
 
     void disconnect() override
     {
-        if (m_socket != -1)
-        {
-            cJSON *root, *message;
-            root = cJSON_CreateObject();
-            cJSON_AddStringToObject(root, "status", "disconnected");
-            message = cJSON_CreateObject();
-            cJSON_AddNumberToObject(message, "code", 0);
-            cJSON_AddStringToObject(message, "reason", "");
-            cJSON_AddItemToObject(root, "message", message);
-            char *json_str = cJSON_PrintUnformatted(root);
-
-            eventCallback(CONNECTION_DROPPED, json_str);
-
-            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Disconnecting TCP streamer...\n");
-            close(m_socket);
-
-            cJSON_Delete(root);
-            switch_safe_free(json_str);
-
-            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "TcpStreamer: Connection closed\n");
-        }
+        switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Disconnecting TCP streamer...\n");
+        close(m_socket);
     }
 
     static void media_bug_close(switch_core_session_t *session)
