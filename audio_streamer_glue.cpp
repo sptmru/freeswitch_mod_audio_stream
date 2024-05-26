@@ -576,18 +576,18 @@ public:
             pcmu_to_lpcm_convert_buffer(buffer, lpcm_buffer.data(), len);
 
             // Calculate the expected interval based on the sample rate and channels
-            double expected_interval = static_cast<double>(lpcm_len) / (m_samplingRate * m_channels); // 2 bytes per sample for 16-bit audio
+            // double expected_interval = static_cast<double>(lpcm_len) / (m_samplingRate * m_channels); // 2 bytes per sample for 16-bit audio
 
-            static auto last_send_time = std::chrono::steady_clock::now();
-            auto now = std::chrono::steady_clock::now();
+            // static auto last_send_time = std::chrono::steady_clock::now();
+            // auto now = std::chrono::steady_clock::now();
 
-            std::chrono::duration<double> elapsed = now - last_send_time;
+            // std::chrono::duration<double> elapsed = now - last_send_time;
 
-            if (elapsed.count() < expected_interval)
-            {
-                auto sleep_time = std::chrono::duration<double>(expected_interval - elapsed.count());
-                std::this_thread::sleep_for(sleep_time);
-            }
+            // if (elapsed.count() < expected_interval)
+            // {
+            //     auto sleep_time = std::chrono::duration<double>(expected_interval - elapsed.count());
+            //     std::this_thread::sleep_for(sleep_time);
+            // }
             ssize_t bytes_sent = send(m_socket, lpcm_buffer.data(), lpcm_len * sizeof(int16_t), 0);
 
             if (bytes_sent == -1)
@@ -597,7 +597,7 @@ public:
                 // Optionally, handle disconnection or reconnection logic
             }
 
-            last_send_time = std::chrono::steady_clock::now();
+            // last_send_time = std::chrono::steady_clock::now();
         }
     }
 
