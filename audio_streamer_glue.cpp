@@ -499,6 +499,8 @@ public:
     {
         if (this->isConnected())
         {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "TcpStreamer: Sending %zu bytes\n", len);
+
             // Calculate the expected interval based on the sample rate and channels
             double expected_interval = static_cast<double>(len) / (m_samplingRate * m_channels * 2); // 2 bytes per sample for 16-bit audio
 
@@ -511,8 +513,21 @@ public:
                 std::this_thread::sleep_for(std::chrono::duration<double>(expected_interval - elapsed.count()));
             }
 
-            send(m_socket, buffer, len, 0);
+            int bytes_sent = send(m_socket, buffer, len, 0);
+            if (bytes_sent == -1)
+            {
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "TcpStreamer: Error sending data: %s\n", strerror(errno));
+            }
+            else
+            {
+                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "TcpStreamer: Successfully sent %d bytes\n", bytes_sent);
+            }
+
             last_send_time = now;
+        }
+        else
+        {
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "TcpStreamer: Not connected\n");
         }
     }
 
