@@ -557,15 +557,9 @@ public:
         if (this->isConnected())
         {
             // Calculate the expected interval based on the sample rate and channels
-            double expected_interval = static_cast<double>(len) / (m_samplingRate * m_channels * 2); // 2 bytes per sample for 16-bit audio
+            double expected_interval = static_cast<double>(len) / (m_samplingRate * m_channels * 1); // 1 byte per sample for 8-bit audio
 
-            auto now = std::chrono::steady_clock::now();
-
-            // Ensure last_send_time is initialized properly
-            if (last_send_time.time_since_epoch().count() == 0)
-            {
-                last_send_time = now;
-            }
+            static auto last_send_time = std::chrono::steady_clock::now();
 
             std::chrono::duration<double> elapsed = now - last_send_time;
 
