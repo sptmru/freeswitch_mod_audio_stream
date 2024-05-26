@@ -497,10 +497,14 @@ public:
         {
             switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Disconnecting TCP streamer...\n");
             close(m_socket);
-            m_socket = -1;
 
-            cJSON *root = cJSON_CreateObject();
+            cJSON *root, *message;
+            root = cJSON_CreateObject();
             cJSON_AddStringToObject(root, "status", "disconnected");
+            message = cJSON_CreateObject();
+            cJSON_AddNumberToObject(message, "code", 0);
+            cJSON_AddStringToObject(message, "reason", "");
+            cJSON_AddItemToObject(root, "message", message);
             char *json_str = cJSON_PrintUnformatted(root);
 
             eventCallback(CONNECTION_DROPPED, json_str);
