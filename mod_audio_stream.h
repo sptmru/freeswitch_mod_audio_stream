@@ -5,10 +5,6 @@
 #include <speex/speex_resampler.h>
 #include "buffer/ringbuffer.h"
 
-SWITCH_MODULE_LOAD_FUNCTION(mod_audio_stream_load);
-SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_audio_stream_shutdown);
-SWITCH_MODULE_RUNTIME_FUNCTION(mod_audio_stream_runtime);
-
 #define MY_BUG_NAME "audio_stream"
 #define MAX_SESSION_ID (256)
 #define MAX_WS_URI (4096)
