@@ -26,6 +26,14 @@ make
 sudo make install
 ```
 
+### TCP streaming
+
+To stream to a TCP socket instead of a WS endpoint, you need to change `STREAM_TIME` to "TCP" in `mod_audio_stream.h`.
+
+### Bufferization
+
+Bufferization interval in milliseconds is configured on compile time in `audio_streamer_glue.cpp` (`BUFFERIZATION_INTERVAL_MS`).
+
 ### Channel variables
 The following channel variables can be used to fine tune websocket connection and also configure mod_audio_stream logging:
 
