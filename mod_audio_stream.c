@@ -13,8 +13,6 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_audio_stream_load);
 
 SWITCH_MODULE_DEFINITION(mod_audio_stream, mod_audio_stream_load, mod_audio_stream_shutdown, NULL /*mod_audio_stream_runtime*/);
 
-#define MY_BUG_NAME "mod_audio_stream_bug"
-
 typedef struct {
     switch_core_session_t *session;
     switch_buffer_t *audio_buffer;
