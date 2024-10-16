@@ -219,6 +219,7 @@ static switch_status_t start_capture(switch_core_session_t *session,
 
     // Initialize audio buffer
     switch_buffer_create_dynamic(&stream_session->audio_buffer, 1024, 1024 * 1024, 0);
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "start_capture: audio_buffer initialized\n");
 
     // Initialize mutex
     switch_mutex_init(&stream_session->audio_buffer_mutex, SWITCH_MUTEX_NESTED, NULL);
