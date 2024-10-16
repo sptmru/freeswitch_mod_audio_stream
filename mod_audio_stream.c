@@ -58,7 +58,6 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
 
                     // Get the stream_session
                     audio_stream_session_t *stream_session = switch_channel_get_private(channel, "audio_stream_pUserData");
-                    stream_session = switch_channel_get_private(channel, "audio_stream_pUserData");
 
                     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: stream_session retrieved from channel at %p\n", (void *)stream_session);
 
@@ -108,7 +107,16 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
     {
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "Got SWITCH_ABC_TYPE_CLOSE.\n");
         if (stream_session) {
-            switch_core_session_rwunlock(stream_session->session);
+            // Destroy the buffer and mutex
+            if (stream_session->audio_buffer) {
+                switch_buffer_destroy(&stream_session->audio_buffer);
+            }
+            if (stream_session->audio_buffer_mutex) {
+                switch_mutex_destroy(stream_session->audio_buffer_mutex);
+            }
+
+            // Release session reference count
+            switch_core_session_rwunlock(session);
         } else {
             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: stream_session is NULL during cleanup\n");
         }
@@ -201,7 +209,8 @@ static switch_status_t start_capture(switch_core_session_t *session,
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: session UUID: %s\n", session_uuid);
 
     // Allocate stream_session using malloc
-    audio_stream_session_t *stream_session = malloc(sizeof(audio_stream_session_t));
+    audio_stream_session_t *stream_session = switch_core_session_alloc(session, sizeof(audio_stream_session_t));
+
     if (!stream_session) {
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Failed to allocate memory for stream_session\n");
         return SWITCH_STATUS_FALSE;
@@ -228,6 +237,8 @@ static switch_status_t start_capture(switch_core_session_t *session,
     // Store pUserData for access in responseHandler
     switch_channel_set_private(channel, "audio_stream_pUserData", pUserData);
 
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: Before stream_session_init, pUserData = %p\n", pUserData);
+
     if (isWs)
     {
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "calling stream_session_init for WS.\n");
@@ -249,6 +260,13 @@ static switch_status_t start_capture(switch_core_session_t *session,
             return SWITCH_STATUS_FALSE;
         }
     }
+
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: After stream_session_init, pUserData = %p\n", pUserData);
+
+    stream_session = (audio_stream_session_t *)pUserData;
+    switch_channel_set_private(channel, "audio_stream_pUserData", stream_session);
+    
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: Updated stream_session = %p\n", stream_session);
 
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "adding bug.\n");
     if ((status = switch_core_media_bug_add(session, MY_BUG_NAME, NULL, capture_callback, pUserData, 0, flags, &bug)) != SWITCH_STATUS_SUCCESS)
