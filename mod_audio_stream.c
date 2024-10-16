@@ -13,16 +13,12 @@ SWITCH_MODULE_LOAD_FUNCTION(mod_audio_stream_load);
 
 SWITCH_MODULE_DEFINITION(mod_audio_stream, mod_audio_stream_load, mod_audio_stream_shutdown, NULL /*mod_audio_stream_runtime*/);
 
-typedef struct {
-    switch_core_session_t *session;
-    switch_buffer_t *audio_buffer;
-    switch_mutex_t *audio_buffer_mutex;
-} audio_stream_session_t;
-
 static void responseHandler(switch_core_session_t *session, const char *eventName, const char *json)
 {
     switch_event_t *event;
     switch_channel_t *channel = switch_core_session_get_channel(session);
+    private_t *tech_pvt = switch_channel_get_private(channel, "audio_stream_pUserData");
+    
     switch_event_create_subclass(&event, SWITCH_EVENT_CUSTOM, eventName);
     switch_channel_event_set_data(channel, event);
     if (json)
@@ -56,23 +52,17 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
 
                     // Now audio_data contains the decoded audio data, of length decoded_size
 
-                    // Get the stream_session
-                    audio_stream_session_t *stream_session = switch_channel_get_private(channel, "audio_stream_pUserData");
+                    if (tech_pvt) {
+                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: tech_pvt retrieved from channel at %p\n", (void *)tech_pvt);
 
-                    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: stream_session retrieved from channel at %p\n", (void *)stream_session);
-
-                    if (stream_session) {
-
-                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: stream_session->audio_buffer_mutex at %p\n", (void *)stream_session->audio_buffer_mutex);
-
-                        if (stream_session->audio_buffer_mutex) {
+                        if (tech_pvt->audio_buffer_mutex) {
                             // Lock the audio buffer mutex
-                            switch_mutex_lock(stream_session->audio_buffer_mutex);
+                            switch_mutex_lock(tech_pvt->audio_buffer_mutex);
                             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: stream session mutex is locked\n");
                             // Write the audio data to the buffer
-                            switch_buffer_write(stream_session->audio_buffer, audio_data, decoded_size);
+                            switch_buffer_write(tech_pvt->audio_buffer, audio_data, decoded_size);
                             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing audio buffer to stream session...\n");
-                            switch_mutex_unlock(stream_session->audio_buffer_mutex);
+                            switch_mutex_unlock(tech_pvt->audio_buffer_mutex);
                             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing finished, stream session mutex is unlocked\n");
                         } else {
                             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: audio_buffer_mutex is NULL\n");
@@ -96,7 +86,7 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
 static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, switch_abc_type_t type)
 {
     switch_core_session_t *session = switch_core_media_bug_get_session(bug);
-    audio_stream_session_t *stream_session = (audio_stream_session_t *)user_data;
+    private_t *tech_pvt = (private_t *)user_data;
 
     switch (type)
     {
@@ -106,19 +96,19 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
     case SWITCH_ABC_TYPE_CLOSE:
     {
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "Got SWITCH_ABC_TYPE_CLOSE.\n");
-        if (stream_session) {
+        if (tech_pvt) {
             // Destroy the buffer and mutex
-            if (stream_session->audio_buffer) {
-                switch_buffer_destroy(&stream_session->audio_buffer);
+            if (tech_pvt->audio_buffer) {
+                switch_buffer_destroy(&tech_pvt->audio_buffer);
             }
-            if (stream_session->audio_buffer_mutex) {
-                switch_mutex_destroy(stream_session->audio_buffer_mutex);
+            if (tech_pvt->audio_buffer_mutex) {
+                switch_mutex_destroy(tech_pvt->audio_buffer_mutex);
             }
 
             // Release session reference count
             switch_core_session_rwunlock(session);
         } else {
-            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: stream_session is NULL during cleanup\n");
+            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: tech_pvt is NULL during cleanup\n");
         }
         stream_session_cleanup(session, NULL, 1);
     }
@@ -137,18 +127,18 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
         uint32_t data_len = frame->datalen;
         uint32_t bytes_needed = data_len;
 
-        if (stream_session) {
-            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: stream_session exists\n");
+        if (tech_pvt) {
+            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: tech_pvt exists\n");
             // Read data from the audio buffer
-            switch_mutex_lock(stream_session->audio_buffer_mutex);
-            uint32_t bytes_available = (uint32_t)switch_buffer_inuse(stream_session->audio_buffer);
+            switch_mutex_lock(tech_pvt->audio_buffer_mutex);
+            uint32_t bytes_available = (uint32_t)switch_buffer_inuse(tech_pvt->audio_buffer);
             if (bytes_available >= bytes_needed) {
-                switch_buffer_read(stream_session->audio_buffer, data, bytes_needed);
+                switch_buffer_read(tech_pvt->audio_buffer, data, bytes_needed);
                 frame->samples = bytes_needed / 2; // Assuming 16-bit samples
             } else if (bytes_available > 0) {
                 // Not enough data, read what we have and fill the rest with silence
                 uint32_t bytes_to_read = bytes_available;
-                switch_buffer_read(stream_session->audio_buffer, data, bytes_to_read);
+                switch_buffer_read(tech_pvt->audio_buffer, data, bytes_to_read);
                 memset(data + bytes_to_read, 0, data_len - bytes_to_read);
                 frame->samples = data_len / 2;
             } else {
@@ -156,7 +146,7 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
                 memset(data, 0, data_len);
                 frame->samples = data_len / 2;
             }
-            switch_mutex_unlock(stream_session->audio_buffer_mutex);
+            switch_mutex_unlock(tech_pvt->audio_buffer_mutex);
 
             return SWITCH_TRUE; // Indicate that we have replaced the frame
         }
@@ -208,34 +198,7 @@ static switch_status_t start_capture(switch_core_session_t *session,
     const char *session_uuid = switch_core_session_get_uuid(session);
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: session UUID: %s\n", session_uuid);
 
-    // Allocate stream_session using malloc
-    audio_stream_session_t *stream_session = switch_core_session_alloc(session, sizeof(audio_stream_session_t));
-
-    if (!stream_session) {
-        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Failed to allocate memory for stream_session\n");
-        return SWITCH_STATUS_FALSE;
-    }
-    memset(stream_session, 0, sizeof(audio_stream_session_t));
-    stream_session->session = session;
-
-    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: stream_session allocated at %p\n", (void *)stream_session);
-
-    // Initialize audio buffer
-    switch_buffer_create_dynamic(&stream_session->audio_buffer, 1024, 1024 * 1024, 1024 * 1024);
-    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: audio_buffer initialized\n");
-
-    // Initialize mutex
-    switch_mutex_init(&stream_session->audio_buffer_mutex, SWITCH_MUTEX_NESTED, switch_core_session_get_pool(session));
-    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: audio_buffer_mutex initialized at %p\n", (void *)stream_session->audio_buffer_mutex);
-
-    // Increment session reference count
-    switch_core_session_read_lock(session);
-
-    // Store stream_session
-    pUserData = stream_session;
-
-    // Store pUserData for access in responseHandler
-    switch_channel_set_private(channel, "audio_stream_pUserData", pUserData);
+    // pUserData is already initialized to NULL
 
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: Before stream_session_init, pUserData = %p\n", pUserData);
 
@@ -263,10 +226,20 @@ static switch_status_t start_capture(switch_core_session_t *session,
 
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: After stream_session_init, pUserData = %p\n", pUserData);
 
-    stream_session = (audio_stream_session_t *)pUserData;
-    switch_channel_set_private(channel, "audio_stream_pUserData", stream_session);
-    
-    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: Updated stream_session = %p\n", stream_session);
+    private_t *tech_pvt = (private_t *)pUserData;
+
+    // Initialize audio_buffer and audio_buffer_mutex
+    switch_buffer_create_dynamic(&tech_pvt->audio_buffer, 1024, 1024 * 1024, 1024 * 1024);
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: audio_buffer initialized\n");
+
+    switch_mutex_init(&tech_pvt->audio_buffer_mutex, SWITCH_MUTEX_NESTED, switch_core_session_get_pool(session));
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: audio_buffer_mutex initialized at %p\n", (void *)tech_pvt->audio_buffer_mutex);
+
+    // Increment session reference count
+    switch_core_session_read_lock(session);
+
+    // Store tech_pvt in the channel's private data for access in responseHandler
+    switch_channel_set_private(channel, "audio_stream_pUserData", tech_pvt);
 
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "adding bug.\n");
     if ((status = switch_core_media_bug_add(session, MY_BUG_NAME, NULL, capture_callback, pUserData, 0, flags, &bug)) != SWITCH_STATUS_SUCCESS)
@@ -275,9 +248,6 @@ static switch_status_t start_capture(switch_core_session_t *session,
     }
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "setting bug private data.\n");
     switch_channel_set_private(channel, MY_BUG_NAME, bug);
-
-    // Store pUserData for access in responseHandler
-    switch_channel_set_private(channel, "audio_stream_pUserData", pUserData);
 
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "exiting start_capture.\n");
     return SWITCH_STATUS_SUCCESS;
