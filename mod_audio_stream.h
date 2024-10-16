@@ -36,6 +36,8 @@ struct private_data
     RingBuffer *buffer;
     uint8_t *data;
     int rtp_packets;
+    switch_buffer_t *audio_buffer;
+    switch_mutex_t *audio_buffer_mutex;
 };
 
 typedef struct private_data private_t;
