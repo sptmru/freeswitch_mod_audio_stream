@@ -64,9 +64,12 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: streaming received audio to session\n");
                         // Lock the audio buffer mutex
                         switch_mutex_lock(stream_session->audio_buffer_mutex);
+                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: stream session mutex is locked\n");
                         // Write the audio data to the buffer
                         switch_buffer_write(stream_session->audio_buffer, audio_data, decoded_size);
+                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: writing audio buffer to stream session...\n");
                         switch_mutex_unlock(stream_session->audio_buffer_mutex);
+                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: writing finished, stream session mutex is unlocked\n");
                     } else {
                         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: No stream session data\n");
                     }
