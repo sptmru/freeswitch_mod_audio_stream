@@ -17,7 +17,6 @@ typedef struct {
     switch_core_session_t *session;
     switch_buffer_t *audio_buffer;
     switch_mutex_t *audio_buffer_mutex;
-    switch_memory_pool_t *pool;
 } audio_stream_session_t;
 
 static void responseHandler(switch_core_session_t *session, const char *eventName, const char *json)
@@ -58,7 +57,7 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                     // Now audio_data contains the decoded audio data, of length decoded_size
 
                     // Get the stream_session
-                    audio_stream_session_t *stream_session = NULL;
+                    audio_stream_session_t *stream_session = switch_channel_get_private(channel, "audio_stream_pUserData");
                     stream_session = switch_channel_get_private(channel, "audio_stream_pUserData");
 
                     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: stream_session retrieved from channel at %p\n", (void *)stream_session);
@@ -109,15 +108,6 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
     {
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "Got SWITCH_ABC_TYPE_CLOSE.\n");
         if (stream_session) {
-            switch_buffer_destroy(&stream_session->audio_buffer);
-            switch_mutex_destroy(stream_session->audio_buffer_mutex);
-
-            // Destroy the memory pool
-            switch_core_destroy_memory_pool(&stream_session->pool);
-
-            free(stream_session);
-
-            // Release session reference count
             switch_core_session_rwunlock(stream_session->session);
         } else {
             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: stream_session is NULL during cleanup\n");
@@ -221,19 +211,12 @@ static switch_status_t start_capture(switch_core_session_t *session,
 
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: stream_session allocated at %p\n", (void *)stream_session);
 
-    // Create a new memory pool for the stream_session
-    if (switch_core_new_memory_pool(&stream_session->pool) != SWITCH_STATUS_SUCCESS) {
-        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Failed to create memory pool for stream_session\n");
-        free(stream_session);
-        return SWITCH_STATUS_FALSE;
-    }
-
     // Initialize audio buffer
-    switch_buffer_create_dynamic(&stream_session->audio_buffer, 1024, 1024 * 1024, stream_session->pool);
+    switch_buffer_create_dynamic(&stream_session->audio_buffer, 1024, 1024 * 1024, 1024 * 1024);
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: audio_buffer initialized\n");
 
     // Initialize mutex
-    switch_mutex_init(&stream_session->audio_buffer_mutex, SWITCH_MUTEX_NESTED, stream_session->pool);
+    switch_mutex_init(&stream_session->audio_buffer_mutex, SWITCH_MUTEX_NESTED, switch_core_session_get_pool(session));
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: audio_buffer_mutex initialized at %p\n", (void *)stream_session->audio_buffer_mutex);
 
     // Increment session reference count
