@@ -5,12 +5,22 @@
 #include <math.h>
 #include "mod_audio_stream.h"
 #include "audio_streamer_glue.h"
+#include "cJSON.h"
 
 SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_audio_stream_shutdown);
 SWITCH_MODULE_RUNTIME_FUNCTION(mod_audio_stream_runtime);
 SWITCH_MODULE_LOAD_FUNCTION(mod_audio_stream_load);
 
 SWITCH_MODULE_DEFINITION(mod_audio_stream, mod_audio_stream_load, mod_audio_stream_shutdown, NULL /*mod_audio_stream_runtime*/);
+
+#define MY_BUG_NAME "mod_audio_stream_bug"
+
+typedef struct {
+    switch_core_session_t *session;
+    switch_buffer_t *audio_buffer;
+    switch_mutex_t *audio_buffer_mutex;
+    // Add other necessary fields
+} audio_stream_session_t;
 
 static void responseHandler(switch_core_session_t *session, const char *eventName, const char *json)
 {
@@ -21,11 +31,62 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
     if (json)
         switch_event_add_body(event, "%s", json);
     switch_event_fire(&event);
+
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: starting\n");
+
+    // New code to handle audio messages
+    if (json && strstr(json, "\"delta\"")) {
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: got delta in response, parsing... \n");
+        // Parse the JSON, extract the "delta" field
+        cJSON *json_obj = cJSON_Parse(json);
+        if (json_obj) {
+            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: successfully parsed \n");
+            cJSON *delta_obj = cJSON_GetObjectItem(json_obj, "delta");
+            if (delta_obj && delta_obj->type == cJSON_String) {
+                switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: delta is a string, decoding\n");
+                const char *delta_base64 = delta_obj->valuestring;
+                // Decode base64 data
+                switch_size_t decoded_len = strlen(delta_base64);
+                switch_size_t audio_data_len = (decoded_len * 3) / 4; // approximate size after decoding
+                switch_byte_t *audio_data = malloc(audio_data_len);
+
+                if (audio_data) {
+                    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: got audio from string \n");
+                    switch_size_t decoded_size = switch_b64_decode(delta_base64, (char *)audio_data, audio_data_len);
+
+                    // Now audio_data contains the decoded audio data, of length decoded_size
+
+                    // Get the stream_session
+                    audio_stream_session_t *stream_session = NULL;
+                    stream_session = switch_channel_get_private(channel, "audio_stream_pUserData");
+
+                    if (stream_session) {
+                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: streaming received audio to session\n");
+                        // Lock the audio buffer mutex
+                        switch_mutex_lock(stream_session->audio_buffer_mutex);
+                        // Write the audio data to the buffer
+                        switch_buffer_write(stream_session->audio_buffer, audio_data, decoded_size);
+                        switch_mutex_unlock(stream_session->audio_buffer_mutex);
+                    } else {
+                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: No stream session data\n");
+                    }
+
+                    free(audio_data);
+                } else {
+                    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: failed to allocate memory for audio data\n");
+                }
+            }
+            cJSON_Delete(json_obj);
+        } else {
+            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: failed to parse JSON: %s\n", json);
+        }
+    }
 }
 
 static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, switch_abc_type_t type)
 {
     switch_core_session_t *session = switch_core_media_bug_get_session(bug);
+    audio_stream_session_t *stream_session = (audio_stream_session_t *)user_data;
 
     switch (type)
     {
@@ -43,7 +104,41 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
         return stream_frame(bug);
         break;
 
-    case SWITCH_ABC_TYPE_WRITE:
+    case SWITCH_ABC_TYPE_WRITE_REPLACE:
+    {
+
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: got SWITCH_ABC_TYPE_WRITE_REPLACE\n");
+        switch_frame_t *frame = switch_core_media_bug_get_write_replace_frame(bug);
+        switch_byte_t *data = frame->data;
+        uint32_t data_len = frame->datalen;
+        uint32_t bytes_needed = data_len;
+
+        if (stream_session) {
+            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: stream_session exists\n");
+            // Read data from the audio buffer
+            switch_mutex_lock(stream_session->audio_buffer_mutex);
+            uint32_t bytes_available = (uint32_t)switch_buffer_inuse(stream_session->audio_buffer);
+            if (bytes_available >= bytes_needed) {
+                switch_buffer_read(stream_session->audio_buffer, data, bytes_needed);
+                frame->samples = bytes_needed / 2; // Assuming 16-bit samples
+            } else if (bytes_available > 0) {
+                // Not enough data, read what we have and fill the rest with silence
+                uint32_t bytes_to_read = bytes_available;
+                switch_buffer_read(stream_session->audio_buffer, data, bytes_to_read);
+                memset(data + bytes_to_read, 0, data_len - bytes_to_read);
+                frame->samples = data_len / 2;
+            } else {
+                // No data, fill with silence
+                memset(data, 0, data_len);
+                frame->samples = data_len / 2;
+            }
+            switch_mutex_unlock(stream_session->audio_buffer_mutex);
+
+            return SWITCH_TRUE; // Indicate that we have replaced the frame
+        }
+        break;
+    }
+
     default:
         break;
     }
@@ -86,6 +181,15 @@ static switch_status_t start_capture(switch_core_session_t *session,
     int port = return_port(address);
     bool isWs = validate_address(address, wsUri, tcpAddress, 0);
 
+    // Initialize audio_stream_session_t
+    audio_stream_session_t *stream_session = switch_core_session_alloc(session, sizeof(audio_stream_session_t));
+    stream_session->session = session;
+    // Initialize audio buffer
+    switch_buffer_create_dynamic(&stream_session->audio_buffer, 1024, 1024 * 1024, 0);
+    // Create mutex
+    switch_mutex_init(&stream_session->audio_buffer_mutex, SWITCH_MUTEX_NESTED, switch_core_session_get_pool(session));
+    pUserData = stream_session;
+
     if (isWs)
     {
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "calling stream_session_init for WS.\n");
@@ -115,6 +219,9 @@ static switch_status_t start_capture(switch_core_session_t *session,
     }
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "setting bug private data.\n");
     switch_channel_set_private(channel, MY_BUG_NAME, bug);
+
+    // Store pUserData for access in responseHandler
+    switch_channel_set_private(channel, "audio_stream_pUserData", pUserData);
 
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "exiting start_capture.\n");
     return SWITCH_STATUS_SUCCESS;
@@ -251,7 +358,11 @@ SWITCH_STANDARD_API(stream_function)
                     flags |= SMBF_WRITE_STREAM;
                     flags |= SMBF_STEREO;
                 }
-                else if (0 != strcmp(argv[3], "mono"))
+                else if (0 == strcmp(argv[3], "mono"))
+                {
+                    flags |= SMBF_WRITE_REPLACE; // Use WRITE_REPLACE instead
+                }
+                else
                 {
                     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR,
                                       "invalid mix type: %s, must be mono, mixed, or stereo\n", argv[3]);
@@ -293,7 +404,7 @@ SWITCH_STANDARD_API(stream_function)
         }
         else
         {
-            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Error locating session %s\n",
+            switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Error locating session %s\n",
                               argv[0]);
         }
     }
