@@ -284,11 +284,36 @@ public:
         return (webSocket.getReadyState() == ix::ReadyState::Open);
     }
 
-    void writeBinary(uint8_t *buffer, size_t len) override
-    {
+    // void writeBinary(uint8_t *buffer, size_t len) override
+    // {
+    //     if (!this->isConnected())
+    //         return;
+    //     webSocket.sendBinary(ix::IXWebSocketSendData((char *)buffer, len));
+    // }
+
+    void writeBinary(uint8_t *buffer, size_t len) override {
         if (!this->isConnected())
             return;
-        webSocket.sendBinary(ix::IXWebSocketSendData((char *)buffer, len));
+
+        // Convert the buffer to PCM16 and then base64 encode it.
+        std::vector<int16_t> pcm16Data(len / 2);
+        for (size_t i = 0; i < len / 2; ++i) {
+            pcm16Data[i] = static_cast<int16_t>(buffer[i * 2] | (buffer[i * 2 + 1] << 8));
+        }
+
+        // Encode the PCM16 data as base64
+        std::string base64Audio = base64_encode(reinterpret_cast<const unsigned char*>(pcm16Data.data()), pcm16Data.size() * sizeof(int16_t));
+
+        // Prepare the JSON message
+        cJSON *root = cJSON_CreateObject();
+        cJSON_AddStringToObject(root, "type", "input_audio_buffer.append");
+        cJSON_AddStringToObject(root, "audio", base64Audio.c_str());
+
+        char *jsonStr = cJSON_PrintUnformatted(root);
+        webSocket.sendUtf8Text(ix::IXWebSocketSendData(jsonStr, strlen(jsonStr)));
+
+        cJSON_Delete(root);
+        switch_safe_free(jsonStr);
     }
 
     void writeText(const char *text) override
