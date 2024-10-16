@@ -5,7 +5,7 @@
 #include <math.h>
 #include "mod_audio_stream.h"
 #include "audio_streamer_glue.h"
-#include "cJSON.h"
+#include <switch_json.h>
 
 SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_audio_stream_shutdown);
 SWITCH_MODULE_RUNTIME_FUNCTION(mod_audio_stream_runtime);
