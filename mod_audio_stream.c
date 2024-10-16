@@ -29,21 +29,21 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
         switch_event_add_body(event, "%s", json);
     switch_event_fire(&event);
 
-    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: starting\n");
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: starting\n");
 
     const char *session_uuid = switch_core_session_get_uuid(session);
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: session UUID: %s\n", session_uuid);
 
     // New code to handle audio messages
     if (json && strstr(json, "\"delta\"")) {
-        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: got delta in response, parsing... \n");
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: got delta in response, parsing... \n");
         // Parse the JSON, extract the "delta" field
         cJSON *json_obj = cJSON_Parse(json);
         if (json_obj) {
-            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: successfully parsed \n");
+            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: successfully parsed \n");
             cJSON *delta_obj = cJSON_GetObjectItem(json_obj, "delta");
             if (delta_obj && delta_obj->type == cJSON_String) {
-                switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: delta is a string, decoding\n");
+                switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: delta is a string, decoding\n");
                 const char *delta_base64 = delta_obj->valuestring;
                 // Decode base64 data
                 switch_size_t decoded_len = strlen(delta_base64);
@@ -51,7 +51,7 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                 switch_byte_t *audio_data = malloc(audio_data_len);
 
                 if (audio_data) {
-                    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: got audio from string \n");
+                    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: got audio from string \n");
                     switch_size_t decoded_size = switch_b64_decode(delta_base64, (char *)audio_data, audio_data_len);
 
                     // Now audio_data contains the decoded audio data, of length decoded_size
@@ -69,12 +69,12 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                         if (stream_session->audio_buffer_mutex) {
                             // Lock the audio buffer mutex
                             switch_mutex_lock(stream_session->audio_buffer_mutex);
-                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: stream session mutex is locked\n");
+                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: stream session mutex is locked\n");
                             // Write the audio data to the buffer
                             switch_buffer_write(stream_session->audio_buffer, audio_data, decoded_size);
-                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: writing audio buffer to stream session...\n");
+                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing audio buffer to stream session...\n");
                             switch_mutex_unlock(stream_session->audio_buffer_mutex);
-                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: writing finished, stream session mutex is unlocked\n");
+                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing finished, stream session mutex is unlocked\n");
                         } else {
                             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: audio_buffer_mutex is NULL\n");
                         }
