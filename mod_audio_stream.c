@@ -7,6 +7,7 @@
 #include "audio_streamer_glue.h"
 #include <switch_json.h>
 
+
 SWITCH_MODULE_SHUTDOWN_FUNCTION(mod_audio_stream_shutdown);
 SWITCH_MODULE_RUNTIME_FUNCTION(mod_audio_stream_runtime);
 SWITCH_MODULE_LOAD_FUNCTION(mod_audio_stream_load);
@@ -61,11 +62,6 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                     // Interpret data as int16_t samples
                     int16_t *audio_samples = (int16_t *)audio_data;
                     size_t num_samples = decoded_size / 2;
-
-                    // Handle endianness if necessary (e.g., swap bytes)
-                    for (size_t i = 0; i < num_samples; i++) {
-                        audio_samples[i] = switch_byte_swap_int16(audio_samples[i]);
-                    }
 
                     // Write audio data to file for debugging
                     if (tech_pvt && tech_pvt->audio_file && tech_pvt->file_mutex) {
