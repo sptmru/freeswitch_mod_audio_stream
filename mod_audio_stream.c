@@ -50,6 +50,33 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: got audio from string \n");
                     switch_size_t decoded_size = switch_b64_decode(delta_base64, (char *)audio_data, audio_data_len);
 
+                    // Ensure decoded_size is multiple of 2
+                    if (decoded_size % 2 != 0) {
+                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Decoded audio data size is not a multiple of 2 bytes\n");
+                        free(audio_data);
+                        cJSON_Delete(json_obj);
+                        return;
+                    }
+
+
+                    // Interpret data as int16_t samples
+                    int16_t *audio_samples = (int16_t *)audio_data;
+                    size_t num_samples = decoded_size / 2;
+
+
+                    // Handle endianness if necessary (e.g., swap bytes)
+                    // for (size_t i = 0; i < num_samples; i++) {
+                    //     audio_samples[i] = switch_byte_swap_int16(audio_samples[i]);
+                    // }
+
+                    // Write audio data to file for debugging
+                    if (tech_pvt && tech_pvt->audio_file && tech_pvt->file_mutex) {
+                        switch_mutex_lock(tech_pvt->file_mutex);
+                        fwrite(audio_data, 1, decoded_size, tech_pvt->audio_file);
+                        fflush(tech_pvt->audio_file);
+                        switch_mutex_unlock(tech_pvt->file_mutex);
+                    }
+
                     // Write audio data to file for debugging
                     if (tech_pvt && tech_pvt->audio_file && tech_pvt->file_mutex) {
                         switch_mutex_lock(tech_pvt->file_mutex);
