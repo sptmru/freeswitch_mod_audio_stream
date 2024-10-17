@@ -38,6 +38,13 @@ struct private_data
     int rtp_packets;
     switch_buffer_t *audio_buffer;
     switch_mutex_t *audio_buffer_mutex;
+
+    // Added fields for saving audio to a file
+    FILE *audio_file;
+    switch_mutex_t *file_mutex;
+
+    // Added field for timer
+    switch_timer_t timer;
 };
 
 typedef struct private_data private_t;
