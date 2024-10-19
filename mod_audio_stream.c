@@ -132,16 +132,16 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
         return stream_frame(bug);
         break;
 
-    case SWITCH_ABC_TYPE_WRITE_REPLACE:
+    case SWITCH_ABC_TYPE_READ_REPLACE:
     {
-        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: got SWITCH_ABC_TYPE_WRITE_REPLACE\n");
-        switch_frame_t *frame = switch_core_media_bug_get_write_replace_frame(bug);
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "capture_callback: got SWITCH_ABC_TYPE_READ_REPLACE\n");
+        switch_frame_t *frame = switch_core_media_bug_get_read_replace_frame(bug);
         switch_byte_t *data = frame->data;
         uint32_t data_len = frame->datalen;
         uint32_t bytes_needed = data_len;
 
         if (tech_pvt) {
-            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: tech_pvt exists\n");
+            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "capture_callback: tech_pvt exists\n");
             // Read data from the audio buffer
             switch_mutex_lock(tech_pvt->audio_buffer_mutex);
             uint32_t bytes_available = (uint32_t)switch_buffer_inuse(tech_pvt->audio_buffer);
