@@ -137,16 +137,51 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
         return stream_frame(bug);
         break;
 
+    case SWITCH_ABC_TYPE_WRITE_REPLACE:
+    {
+        switch_frame_t *frame = switch_core_media_bug_get_write_replace_frame(bug);
+        switch_byte_t *data = frame->data;
+        uint32_t data_len = frame->datalen;
+        uint32_t bytes_needed = data_len;
+
+        if (tech_pvt) {
+            // Read data from the audio buffer
+            switch_mutex_lock(tech_pvt->audio_buffer_mutex);
+            uint32_t bytes_available = (uint32_t)switch_buffer_inuse(tech_pvt->audio_buffer);
+            if (bytes_available >= bytes_needed) {
+                switch_buffer_read(tech_pvt->audio_buffer, data, bytes_needed);
+                frame->samples = bytes_needed / 2; // Assuming 16-bit samples
+            } else if (bytes_available > 0) {
+                // Not enough data, read what we have and fill the rest with silence
+                uint32_t bytes_to_read = bytes_available;
+                switch_buffer_read(tech_pvt->audio_buffer, data, bytes_to_read);
+                memset(data + bytes_to_read, 0, data_len - bytes_to_read);
+                frame->samples = data_len / 2;
+            } else {
+                // No data, fill with silence
+                memset(data, 0, data_len);
+                frame->samples = data_len / 2;
+            }
+            switch_mutex_unlock(tech_pvt->audio_buffer_mutex);
+
+            // Set the frame's codec
+            frame->codec = &tech_pvt->codec;
+
+            return SWITCH_TRUE; // Indicate that we have replaced the frame
+        } else {
+            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: tech_pvt is NULL in READ_REPLACE\n");
+        }
+        break;
+    }
+
     case SWITCH_ABC_TYPE_READ_REPLACE:
     {
-        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "capture_callback: got SWITCH_ABC_TYPE_READ_REPLACE\n");
         switch_frame_t *frame = switch_core_media_bug_get_read_replace_frame(bug);
         switch_byte_t *data = frame->data;
         uint32_t data_len = frame->datalen;
         uint32_t bytes_needed = data_len;
 
         if (tech_pvt) {
-            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "capture_callback: tech_pvt exists\n");
             // Read data from the audio buffer
             switch_mutex_lock(tech_pvt->audio_buffer_mutex);
             uint32_t bytes_available = (uint32_t)switch_buffer_inuse(tech_pvt->audio_buffer);
