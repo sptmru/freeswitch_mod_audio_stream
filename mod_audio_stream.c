@@ -31,7 +31,7 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: session UUID: %s\n", session_uuid);
 
     // New code to handle audio messages
-    if (json && strstr(json, "\"delta\"")) {
+    if (json && strstr(json, "\"response.audio.delta\"")) {
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: got delta in response, parsing... \n");
         // Parse the JSON, extract the "delta" field
         cJSON *json_obj = cJSON_Parse(json);
@@ -58,16 +58,9 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                         return;
                     }
 
-
                     // Interpret data as int16_t samples
                     int16_t *audio_samples = (int16_t *)audio_data;
                     size_t num_samples = decoded_size / 2;
-
-
-                    // Handle endianness if necessary (e.g., swap bytes)
-                    // for (size_t i = 0; i < num_samples; i++) {
-                    //     audio_samples[i] = switch_byte_swap_int16(audio_samples[i]);
-                    // }
 
                     // Write audio data to file for debugging
                     if (tech_pvt && tech_pvt->audio_file && tech_pvt->file_mutex) {
