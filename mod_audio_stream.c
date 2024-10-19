@@ -162,17 +162,17 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
             uint32_t bytes_available = (uint32_t)switch_buffer_inuse(tech_pvt->audio_buffer);
             if (bytes_available >= bytes_needed) {
                 switch_buffer_read(tech_pvt->audio_buffer, data, bytes_needed);
-                // frame->samples = bytes_needed / 2;
+                frame->samples = bytes_needed / 2;
             } else if (bytes_available > 0) {
                 // Not enough data, read what we have and fill the rest with silence
                 uint32_t bytes_to_read = bytes_available;
                 switch_buffer_read(tech_pvt->audio_buffer, data, bytes_to_read);
                 memset(data + bytes_to_read, 0, data_len - bytes_to_read);
-                // frame->samples = data_len / 2;
+                frame->samples = data_len / 2;
             } else {
                 // No data, fill with silence
                 memset(data, 0, data_len);
-                // frame->samples = data_len / 2;
+                frame->samples = data_len / 2;
             }
             switch_mutex_unlock(tech_pvt->audio_buffer_mutex);
 
@@ -413,7 +413,7 @@ SWITCH_STANDARD_API(stream_function)
             {
                 char address[MAX_WS_URI];
                 int sampling = 8000;
-                switch_media_bug_flag_t flags = 0;
+                switch_media_bug_flag_t flags = SMBF_READ_STREAM;
                 char *metadata = argc > 5 ? argv[5] : NULL;
                 if (metadata && (is_valid_utf8(metadata) != SWITCH_STATUS_SUCCESS))
                 {
