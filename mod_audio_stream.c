@@ -96,7 +96,7 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
 
     case SWITCH_ABC_TYPE_CLOSE:
     {
-        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "Got SWITCH_ABC_TYPE_CLOSE.\n");
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "capture_callback: SWITCH_ABC_TYPE_CLOSE.\n");
         if (tech_pvt) {
             // Destroy the buffer and mutex
             if (tech_pvt->audio_buffer) {
@@ -119,14 +119,19 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
             // Destroy the timer
             switch_core_timer_destroy(&tech_pvt->timer);
 
+            // Destroy the codec
+            if (switch_core_codec_ready(&tech_pvt->codec)) {
+                switch_core_codec_destroy(&tech_pvt->codec);
+            }
+
             // Release session reference count
             switch_core_session_rwunlock(session);
         } else {
             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: tech_pvt is NULL during cleanup\n");
         }
         stream_session_cleanup(session, NULL, 1);
+        break;
     }
-    break;
 
     case SWITCH_ABC_TYPE_READ:
         return stream_frame(bug);
@@ -161,7 +166,12 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
             }
             switch_mutex_unlock(tech_pvt->audio_buffer_mutex);
 
+            // Set the frame's codec
+            frame->codec = &tech_pvt->codec;
+
             return SWITCH_TRUE; // Indicate that we have replaced the frame
+        } else {
+            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: tech_pvt is NULL in READ_REPLACE\n");
         }
         break;
     }
@@ -201,6 +211,10 @@ static switch_status_t start_capture(switch_core_session_t *session,
         return SWITCH_STATUS_FALSE;
     }
 
+    // Ensure FreeSWITCH remains in the media path
+    switch_channel_set_variable(channel, "bypass_media", "false");
+    switch_channel_set_variable(channel, "proxy_media", "false");
+
     char wsUri[MAX_WS_URI];
     char tcpAddress[MAX_WS_URI];
 
@@ -237,16 +251,29 @@ static switch_status_t start_capture(switch_core_session_t *session,
         }
     }
 
-    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: After stream_session_init, pUserData = %p\n", pUserData);
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "start_capture: After stream_session_init, pUserData = %p\n", pUserData);
 
     private_t *tech_pvt = (private_t *)pUserData;
 
+    // Initialize the codec
+    switch_codec_t *codec = &tech_pvt->codec;
+    switch_status_t codec_status = switch_core_codec_init(codec, "L16", NULL, NULL, sampling, 20, 1,
+                                                          SWITCH_CODEC_FLAG_ENCODE | SWITCH_CODEC_FLAG_DECODE, NULL, switch_core_session_get_pool(session));
+    if (codec_status != SWITCH_STATUS_SUCCESS) {
+        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Failed to initialize codec\n");
+        return SWITCH_STATUS_FALSE;
+    }
+
+    // Set the read and write codecs on the session
+    switch_core_session_set_read_codec(session, codec);
+    switch_core_session_set_write_codec(session, codec);
+
     // Initialize audio_buffer and audio_buffer_mutex
     switch_buffer_create_dynamic(&tech_pvt->audio_buffer, 1024, 1024 * 1024, 1024 * 1024);
-    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: audio_buffer initialized\n");
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "start_capture: audio_buffer initialized\n");
 
     switch_mutex_init(&tech_pvt->audio_buffer_mutex, SWITCH_MUTEX_NESTED, switch_core_session_get_pool(session));
-    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "start_capture: audio_buffer_mutex initialized at %p\n", (void *)tech_pvt->audio_buffer_mutex);
+    switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_DEBUG, "start_capture: audio_buffer_mutex initialized at %p\n", (void *)tech_pvt->audio_buffer_mutex);
 
     // Open the audio file
     tech_pvt->audio_file = fopen("/tmp/openai_audio.raw", "wb");
@@ -411,7 +438,7 @@ SWITCH_STANDARD_API(stream_function)
                 }
                 else if (0 == strcmp(argv[3], "mono"))
                 {
-                    flags |= SMBF_WRITE_REPLACE; // Use WRITE_REPLACE instead
+                    flags |= SMBF_READ_REPLACE; // Use READ_REPLACE instead
                 }
                 else
                 {

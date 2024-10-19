@@ -45,6 +45,8 @@ struct private_data
 
     // Added field for timer
     switch_timer_t timer;
+
+    switch_codec_t codec;
 };
 
 typedef struct private_data private_t;
