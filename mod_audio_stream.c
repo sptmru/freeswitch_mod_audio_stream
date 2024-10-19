@@ -30,7 +30,7 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
     const char *session_uuid = switch_core_session_get_uuid(session);
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: session UUID: %s\n", session_uuid);
 
-    // New code to handle audio messages
+    // Handle audio messages
     if (json && strstr(json, "\"response.audio.delta\"")) {
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: got delta in response, parsing... \n");
         // Parse the JSON, extract the "delta" field
@@ -43,7 +43,7 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                 const char *delta_base64 = delta_obj->valuestring;
                 // Decode base64 data
                 switch_size_t decoded_len = strlen(delta_base64);
-                switch_size_t audio_data_len = (decoded_len * 3) / 4; + 1;
+                switch_size_t audio_data_len = (decoded_len * 3) / 4 + 1;
                 switch_byte_t *audio_data = malloc(audio_data_len);
 
                 if (audio_data) {
@@ -51,12 +51,9 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                     switch_size_t decoded_size = switch_b64_decode(delta_base64, (char *)audio_data, audio_data_len);
 
                     if (tech_pvt) {
-                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: tech_pvt retrieved from channel at %p\n", (void *)tech_pvt);
-
                         size_t new_data_size = 0;
                         uint8_t *new_audio_data = NULL;
                         if (decoded_size > tech_pvt->total_audio_bytes_received) {
-                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: there is new audio data to write.\n");
                             new_data_size = decoded_size - tech_pvt->total_audio_bytes_received;
                             new_audio_data = audio_data + tech_pvt->total_audio_bytes_received;
 
@@ -78,7 +75,7 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                             if (tech_pvt->audio_file && tech_pvt->file_mutex) {
                                 switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing audio to test audio file...\n");
                                 switch_mutex_lock(tech_pvt->file_mutex);
-                                fwrite(audio_data, 1, decoded_size, tech_pvt->audio_file);
+                                fwrite(new_audio_data, 1, new_data_size, tech_pvt->audio_file);
                                 fflush(tech_pvt->audio_file);
                                 switch_mutex_unlock(tech_pvt->file_mutex);
                             }
@@ -276,6 +273,9 @@ static switch_status_t start_capture(switch_core_session_t *session,
 
     // Initialize timer for frame timestamps
     switch_core_timer_init(&tech_pvt->timer, "soft", sampling, read_codec->implementation->samples_per_packet, switch_core_session_get_pool(session));
+
+    // Initialize total_audio_bytes_received
+    tech_pvt->total_audio_bytes_received = 0;
 
     // Increment session reference count
     switch_core_session_read_lock(session);
