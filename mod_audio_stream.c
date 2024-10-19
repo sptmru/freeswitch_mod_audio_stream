@@ -174,6 +174,11 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
         switch_channel_t *channel = switch_core_session_get_channel(session);
         switch_frame_t *frame = switch_core_media_bug_get_read_replace_frame(bug);
 
+        uint32_t bytes_needed = frame->datalen;
+
+        frame->codec = &tech_pvt->codec;
+        frame->samples = bytes_needed / 2; // Assuming 16-bit samples
+
         if (switch_channel_ready(channel)) {
             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "CHANNEL IS READY!!\n");
             if (switch_core_session_write_frame(session, frame, SWITCH_IO_FLAG_NONE, 0) != SWITCH_STATUS_SUCCESS) {
