@@ -77,14 +77,6 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                         switch_mutex_unlock(tech_pvt->file_mutex);
                     }
 
-                    // Write audio data to file for debugging
-                    if (tech_pvt && tech_pvt->audio_file && tech_pvt->file_mutex) {
-                        switch_mutex_lock(tech_pvt->file_mutex);
-                        fwrite(audio_data, 1, decoded_size, tech_pvt->audio_file);
-                        fflush(tech_pvt->audio_file);
-                        switch_mutex_unlock(tech_pvt->file_mutex);
-                    }
-
                     // Now audio_data contains the decoded audio data, of length decoded_size
 
                     if (tech_pvt) {
