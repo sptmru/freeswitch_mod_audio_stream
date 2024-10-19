@@ -43,7 +43,7 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                 const char *delta_base64 = delta_obj->valuestring;
                 // Decode base64 data
                 switch_size_t decoded_len = strlen(delta_base64);
-                switch_size_t audio_data_len = (decoded_len * 3) / 4 + 1;
+                switch_size_t audio_data_len = (decoded_len * 3) / 4;
                 switch_byte_t *audio_data = malloc(audio_data_len);
 
                 if (audio_data) {
