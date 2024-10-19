@@ -61,6 +61,53 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                         switch_mutex_unlock(tech_pvt->audio_buffer_mutex);
                         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing finished, stream session mutex is unlocked\n");
 
+                        switch_channel_t *channel = switch_core_session_get_channel(session);
+                        switch_frame_t write_frame = { 0 };
+                        switch_codec_t *codec;
+                        switch_codec_implementation_t read_impl;
+                        switch_size_t decoded_size = switch_b64_decode(delta_base64, (char *)audio_data, audio_data_len);
+
+                        // Get the codec in use for the session
+                        switch_core_session_get_read_impl(session, &read_impl);
+                        codec = switch_core_session_get_read_codec(session);
+
+                        // Calculate the number of samples required for each frame based on the codec's sample rate
+                        uint32_t samples_per_frame = (read_impl.samples_per_second / 50); // 20ms frames (samples per second divided by 50)
+                        size_t bytes_per_frame = samples_per_frame * sizeof(int16_t); // 16-bit PCM means 2 bytes per sample
+
+                        switch_size_t offset = 0;
+
+                        if (switch_channel_ready(channel)) {
+                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "CHANNEL IS READY!!\n");
+                            
+                            while (offset < decoded_size) {
+                                size_t remaining_data = decoded_size - offset;
+                                size_t frame_data_len = (remaining_data > bytes_per_frame) ? bytes_per_frame : remaining_data;
+
+                                // Setup the frame with the correct length of audio data
+                                switch_frame_t write_frame = { 0 };
+                                write_frame.data = audio_data + offset;
+                                write_frame.buflen = frame_data_len;
+                                write_frame.datalen = frame_data_len;
+                                write_frame.samples = frame_data_len / sizeof(int16_t); // 16-bit PCM = 2 bytes per sample
+                                write_frame.codec = codec;
+                                write_frame.timestamp = switch_time_now();
+
+                                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Frame data length: %zu, samples: %d\n", write_frame.datalen, write_frame.samples);
+
+                                // Write the frame to the session
+                                if (switch_core_session_write_frame(session, &write_frame, SWITCH_IO_FLAG_NONE, 0) != SWITCH_STATUS_SUCCESS) {
+                                    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Failed to write audio frame\n");
+                                    break;
+                                }
+
+                                // Move to the next chunk of audio data
+                                offset += frame_data_len;
+                            }
+                        } else {
+                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "CHANNEL IS NOT READY!!\n");
+                        }
+
                         // Write audio data to file for debugging
                         if (tech_pvt->audio_file && tech_pvt->file_mutex) {
                             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing audio to test audio file...\n");
@@ -171,22 +218,6 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
 
     case SWITCH_ABC_TYPE_READ_REPLACE:
     {
-        switch_channel_t *channel = switch_core_session_get_channel(session);
-        switch_frame_t *frame = switch_core_media_bug_get_read_replace_frame(bug);
-
-        uint32_t bytes_needed = frame->datalen;
-
-        frame->codec = &tech_pvt->codec;
-        frame->samples = bytes_needed / 2; // Assuming 16-bit samples
-
-        if (switch_channel_ready(channel)) {
-            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "CHANNEL IS READY!!\n");
-            if (switch_core_session_write_frame(session, frame, SWITCH_IO_FLAG_NONE, 0) != SWITCH_STATUS_SUCCESS) {
-                switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "FAILED TO WRITE FRAME!\n");
-            }
-        } else {
-            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "CHANNEL IS NOT READY!!\n");
-        }
         break;
     }
 
