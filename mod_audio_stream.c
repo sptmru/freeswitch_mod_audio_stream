@@ -31,7 +31,7 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: session UUID: %s\n", session_uuid);
 
     // Handle audio messages
-    if (json && strstr(json, "\"response.audio.delta\"")) {
+    if (json && strstr(json, "\"delta\"")) {
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: got delta in response, parsing...\n");
         // Parse the JSON, extract the "delta" field
         cJSON *json_obj = cJSON_Parse(json);
