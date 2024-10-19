@@ -43,7 +43,7 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                 const char *delta_base64 = delta_obj->valuestring;
                 // Decode base64 data
                 switch_size_t decoded_len = strlen(delta_base64);
-                switch_size_t audio_data_len = (decoded_len * 3) / 4; // approximate size after decoding
+                switch_size_t audio_data_len = (decoded_len * 3) / 4 + 1;
                 switch_byte_t *audio_data = malloc(audio_data_len);
 
                 if (audio_data) {
@@ -59,38 +59,57 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                     }
 
                     // Interpret data as int16_t samples
-                    int16_t *audio_samples = (int16_t *)audio_data;
-                    size_t num_samples = decoded_size / 2;
+                    // int16_t *audio_samples = (int16_t *)audio_data;
+                    // size_t num_samples = decoded_size / 2;
 
                     // Write audio data to file for debugging
-                    if (tech_pvt && tech_pvt->audio_file && tech_pvt->file_mutex) {
-                        switch_mutex_lock(tech_pvt->file_mutex);
-                        fwrite(audio_data, 1, decoded_size, tech_pvt->audio_file);
-                        fflush(tech_pvt->audio_file);
-                        switch_mutex_unlock(tech_pvt->file_mutex);
-                    }
+                    // if (tech_pvt && tech_pvt->audio_file && tech_pvt->file_mutex) {
+                    //     switch_mutex_lock(tech_pvt->file_mutex);
+                    //     fwrite(audio_data, 1, decoded_size, tech_pvt->audio_file);
+                    //     fflush(tech_pvt->audio_file);
+                    //     switch_mutex_unlock(tech_pvt->file_mutex);
+                    // }
 
                     // Now audio_data contains the decoded audio data, of length decoded_size
 
                     if (tech_pvt) {
                         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: tech_pvt retrieved from channel at %p\n", (void *)tech_pvt);
 
-                        if (tech_pvt->audio_buffer_mutex) {
+                        size_t new_data_size = 0;
+                        uint8_t *new_audio_data = NULL;
+                        if (decoded_size > tech_pvt->total_audio_bytes_received) {
+                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: there is new audio data to write.\n");
+                            new_data_size = decoded_size - tech_pvt->total_audio_bytes_received;
+                            new_audio_data = audio_data + tech_pvt->total_audio_bytes_received;
+
                             // Lock the audio buffer mutex
                             switch_mutex_lock(tech_pvt->audio_buffer_mutex);
                             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: stream session mutex is locked\n");
                             // Write the audio data to the buffer
                             switch_buffer_write(tech_pvt->audio_buffer, audio_data, decoded_size);
                             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing audio buffer to stream session...\n");
+                            // Unlock the audio buffer mutex
                             switch_mutex_unlock(tech_pvt->audio_buffer_mutex);
                             switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing finished, stream session mutex is unlocked\n");
+
+                            // Update total_audio_bytes_received
+                            tech_pvt->total_audio_bytes_received = decoded_size;
+                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: total_audio_bytes_received updated \n");
+
+                            // Write audio data to file for debugging
+                            if (tech_pvt->audio_file && tech_pvt->file_mutex) {
+                                switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing audio to test audio file...\n");
+                                switch_mutex_lock(tech_pvt->file_mutex);
+                                fwrite(audio_data, 1, decoded_size, tech_pvt->audio_file);
+                                fflush(tech_pvt->audio_file);
+                                switch_mutex_unlock(tech_pvt->file_mutex);
+                            }
                         } else {
-                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: audio_buffer_mutex is NULL\n");
+                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: there is NO new audio data to write.\n");
                         }
                     } else {
                         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: No stream session data\n");
                     }
-
                     free(audio_data);
                 } else {
                     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: failed to allocate memory for audio data\n");
