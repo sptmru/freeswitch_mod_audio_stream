@@ -164,12 +164,7 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
             }
             switch_mutex_unlock(tech_pvt->audio_buffer_mutex);
 
-            // Set the frame's codec
-            frame->codec = &tech_pvt->codec;
-
             return SWITCH_TRUE; // Indicate that we have replaced the frame
-        } else {
-            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: tech_pvt is NULL in READ_REPLACE\n");
         }
         break;
     }
