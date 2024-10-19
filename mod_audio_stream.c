@@ -171,6 +171,17 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
 
     case SWITCH_ABC_TYPE_READ_REPLACE:
     {
+        switch_channel_t *channel = switch_core_session_get_channel(session);
+        switch_frame_t *frame = switch_core_media_bug_get_read_replace_frame(bug);
+
+        if (switch_channel_ready(channel)) {
+            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "CHANNEL IS READY!!\n");
+            if (switch_core_session_write_frame(session, frame, SWITCH_IO_FLAG_NONE, 0) != SWITCH_STATUS_SUCCESS) {
+                switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "FAILED TO WRITE FRAME!\n");
+            }
+        } else {
+            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "CHANNEL IS NOT READY!!\n");
+        }
         break;
     }
 
