@@ -152,8 +152,8 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: got SWITCH_ABC_TYPE_WRITE_REPLACE\n");
         switch_frame_t *frame = switch_core_media_bug_get_write_replace_frame(bug);
         switch_byte_t *data = frame->data;
-        uint32_t data_len = frame->datalen;
-        // uint32_t data_len = frame->buflen; // Use buflen instead of datalen
+        // uint32_t data_len = frame->datalen;
+        uint32_t data_len = frame->buflen; // Use buflen instead of datalen
         uint32_t bytes_needed = data_len;
 
         if (tech_pvt) {
