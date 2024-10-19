@@ -51,36 +51,23 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                     switch_size_t decoded_size = switch_b64_decode(delta_base64, (char *)audio_data, audio_data_len);
 
                     if (tech_pvt) {
-                        size_t new_data_size = 0;
-                        uint8_t *new_audio_data = NULL;
-                        if (decoded_size > tech_pvt->total_audio_bytes_received) {
-                            new_data_size = decoded_size - tech_pvt->total_audio_bytes_received;
-                            new_audio_data = audio_data + tech_pvt->total_audio_bytes_received;
+                        // Lock the audio buffer mutex
+                        switch_mutex_lock(tech_pvt->audio_buffer_mutex);
+                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: stream session mutex is locked\n");
+                        // Write the audio data to the buffer
+                        switch_buffer_write(tech_pvt->audio_buffer, audio_data, decoded_size);
+                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing audio buffer to stream session...\n");
+                        // Unlock the audio buffer mutex
+                        switch_mutex_unlock(tech_pvt->audio_buffer_mutex);
+                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing finished, stream session mutex is unlocked\n");
 
-                            // Lock the audio buffer mutex
-                            switch_mutex_lock(tech_pvt->audio_buffer_mutex);
-                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: stream session mutex is locked\n");
-                            // Write the audio data to the buffer
-                            switch_buffer_write(tech_pvt->audio_buffer, audio_data, decoded_size);
-                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing audio buffer to stream session...\n");
-                            // Unlock the audio buffer mutex
-                            switch_mutex_unlock(tech_pvt->audio_buffer_mutex);
-                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing finished, stream session mutex is unlocked\n");
-
-                            // Update total_audio_bytes_received
-                            tech_pvt->total_audio_bytes_received = decoded_size;
-                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: total_audio_bytes_received updated \n");
-
-                            // Write audio data to file for debugging
-                            if (tech_pvt->audio_file && tech_pvt->file_mutex) {
-                                switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing audio to test audio file...\n");
-                                switch_mutex_lock(tech_pvt->file_mutex);
-                                fwrite(new_audio_data, 1, new_data_size, tech_pvt->audio_file);
-                                fflush(tech_pvt->audio_file);
-                                switch_mutex_unlock(tech_pvt->file_mutex);
-                            }
-                        } else {
-                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: there is NO new audio data to write.\n");
+                        // Write audio data to file for debugging
+                        if (tech_pvt->audio_file && tech_pvt->file_mutex) {
+                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: writing audio to test audio file...\n");
+                            switch_mutex_lock(tech_pvt->file_mutex);
+                            fwrite(audio_data, 1, decoded_size, tech_pvt->audio_file);
+                            fflush(tech_pvt->audio_file);
+                            switch_mutex_unlock(tech_pvt->file_mutex);
                         }
                     } else {
                         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "responseHandler: No stream session data\n");
@@ -147,7 +134,6 @@ static switch_bool_t capture_callback(switch_media_bug_t *bug, void *user_data, 
 
     case SWITCH_ABC_TYPE_WRITE_REPLACE:
     {
-
         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "capture_callback: got SWITCH_ABC_TYPE_WRITE_REPLACE\n");
         switch_frame_t *frame = switch_core_media_bug_get_write_replace_frame(bug);
         switch_byte_t *data = frame->data;
@@ -273,9 +259,6 @@ static switch_status_t start_capture(switch_core_session_t *session,
 
     // Initialize timer for frame timestamps
     switch_core_timer_init(&tech_pvt->timer, "soft", sampling, read_codec->implementation->samples_per_packet, switch_core_session_get_pool(session));
-
-    // Initialize total_audio_bytes_received
-    tech_pvt->total_audio_bytes_received = 0;
 
     // Increment session reference count
     switch_core_session_read_lock(session);
