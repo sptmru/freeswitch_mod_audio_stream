@@ -45,8 +45,6 @@ struct private_data
 
     // Added field for timer
     switch_timer_t timer;
-
-    size_t total_audio_bytes_received;
 };
 
 typedef struct private_data private_t;
