@@ -43,34 +43,12 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
                 const char *delta_base64 = delta_obj->valuestring;
                 // Decode base64 data
                 switch_size_t decoded_len = strlen(delta_base64);
-                switch_size_t audio_data_len = (decoded_len * 3) / 4;
+                switch_size_t audio_data_len = (decoded_len * 3) / 4; + 1;
                 switch_byte_t *audio_data = malloc(audio_data_len);
 
                 if (audio_data) {
                     switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: got audio from string \n");
                     switch_size_t decoded_size = switch_b64_decode(delta_base64, (char *)audio_data, audio_data_len);
-
-                    // Ensure decoded_size is multiple of 2
-                    if (decoded_size % 2 != 0) {
-                        switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "Decoded audio data size is not a multiple of 2 bytes\n");
-                        free(audio_data);
-                        cJSON_Delete(json_obj);
-                        return;
-                    }
-
-                    // Interpret data as int16_t samples
-                    // int16_t *audio_samples = (int16_t *)audio_data;
-                    // size_t num_samples = decoded_size / 2;
-
-                    // Write audio data to file for debugging
-                    // if (tech_pvt && tech_pvt->audio_file && tech_pvt->file_mutex) {
-                    //     switch_mutex_lock(tech_pvt->file_mutex);
-                    //     fwrite(audio_data, 1, decoded_size, tech_pvt->audio_file);
-                    //     fflush(tech_pvt->audio_file);
-                    //     switch_mutex_unlock(tech_pvt->file_mutex);
-                    // }
-
-                    // Now audio_data contains the decoded audio data, of length decoded_size
 
                     if (tech_pvt) {
                         switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "responseHandler: tech_pvt retrieved from channel at %p\n", (void *)tech_pvt);
