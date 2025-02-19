@@ -77,36 +77,9 @@ static void responseHandler(switch_core_session_t *session, const char *eventNam
 
                         switch_size_t offset = 0;
 
-                        if (switch_channel_ready(channel)) {
-                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_INFO, "CHANNEL IS READY!!\n");
-                            
-                            while (offset < decoded_size) {
-                                size_t remaining_data = decoded_size - offset;
-                                size_t frame_data_len = (remaining_data > bytes_per_frame) ? bytes_per_frame : remaining_data;
-
-                                // Setup the frame with the correct length of audio data
-                                switch_frame_t write_frame = { 0 };
-                                write_frame.data = audio_data + offset;
-                                write_frame.buflen = frame_data_len;
-                                write_frame.datalen = frame_data_len;
-                                write_frame.samples = frame_data_len / sizeof(int16_t); // 16-bit PCM = 2 bytes per sample
-                                write_frame.codec = codec;
-                                write_frame.timestamp = switch_time_now();
-
-                                switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_DEBUG, "Frame data length: %zu, samples: %d\n", write_frame.datalen, write_frame.samples);
-
-                                // Write the frame to the session
-                                if (switch_core_session_write_frame(session, &write_frame, SWITCH_IO_FLAG_NONE, 0) != SWITCH_STATUS_SUCCESS) {
-                                    switch_log_printf(SWITCH_CHANNEL_LOG, SWITCH_LOG_ERROR, "Failed to write audio frame\n");
-                                    break;
-                                }
-
-                                // Move to the next chunk of audio data
-                                offset += frame_data_len;
-                            }
-                        } else {
-                            switch_log_printf(SWITCH_CHANNEL_SESSION_LOG(session), SWITCH_LOG_ERROR, "CHANNEL IS NOT READY!!\n");
-                        }
+                        switch_core_session_execute_application(session, "set", "file_sample_rate=16000");
+                        // switch_core_session_execute_application(session, "set", "absolute_codec_string=L16@16000h");
+                        switch_ivr_play_file(session, NULL, "/tmp/openai.wav", NULL);
 
                         // Write audio data to file for debugging
                         if (tech_pvt->audio_file && tech_pvt->file_mutex) {
